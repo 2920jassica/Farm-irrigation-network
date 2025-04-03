@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Farm Irrigation Network</title>
+  <script src="https://cdn.jsdelivr.net/npm/vis-network@9.0.4/dist/vis-network.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f9;
+    }
+
+    .container {
+      width: 80%;
+      margin: 50px auto;
+      padding: 20px;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h1, h2 {
+      text-align: center;
+    }
+
+    form {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    form label {
+      display: block;
+      margin-top: 10px;
+    }
+
+    form input, form textarea {
+      padding: 10px;
+      margin-top: 5px;
+      width: 300px;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin-top: 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    #network {
+      width: 100%;
+      height: 400px;
+      border: 1px solid #ccc;
+      margin-top: 20px;
+    }
+
+    #mst-results {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Farm Irrigation Network</h1>
+
+    <form id="farm-form">
+      <label for="farm-sections">Enter number of farm sections (nodes):</label>
+      <input type="number" id="farm-sections" min="2" required>
+
+      <label for="edges">Enter edges (section1, section2, cost):</label>
+      <textarea id="edges" placeholder="e.g., 1,2,5" required></textarea>
+
+      <button type="submit">Generate Irrigation Network</button>
+    </form>
+
+    <h2>Farm Irrigation Network Visualization</h2>
+    <div id="network"></div>
+
+    <h2>Minimum Spanning Tree (MST)</h2>
+    <div id="mst-results"></div>
+  </div>
+
+  <script>
+    // Utility function to parse the edges input
+    function parseEdges(input) {
+      let edges = [];
+      let lines = input.trim().split("\n");
+      lines.forEach(line => {
+        let parts = line.split(",");
+        if (parts.length === 3) {
+          let u = parseInt(parts[0].trim()) - 1; // 0-based index
+          let v = parseInt(parts[1].trim()) - 1; // 0-based index
+          let cost = parseInt(parts[2].trim());
+          edges.push({ u, v, cost });
+        }
+      });
+      return edges;
+    }
+
+    // Union-Find class to manage connected components
+    class UnionFind {
+      constructor(n) {
+        this.parent = Array.from({ length: n }, (_, i) => i);
+        this.rank = Array(n).fill(0);
+      }
+
+      find(x) {
+        if (this.parent[x] !== x) {
+          this.parent[x] = this.find(this.parent[x]);
+        }
+        return this.parent[x];
+      }
+
+      union(x, y) {
+        let rootX = this.find(x);
+        let rootY = this.find(y);
+        if (rootX !== rootY) {
+          if (this.rank[rootX] > this.rank[rootY]) {
+            this.parent[rootY] = rootX;
+          } else if (this.rank[rootX] < this.rank[rootY]) {
+            this.parent[rootX] = rootY;
+          } else {
+            this.parent[rootY] = rootX;
+            this.rank[rootX]++;
+          }
+        }
+      }
+    }
+
+    // Kruskal's Algorithm to find MST
+    function kruskal(nodes, edges) {
+      // Sort edges by weight
+      edges.sort((a, b) => a.cost - b.cost);
+
+      const uf = new UnionFind(nodes);
+      const mst = [];
+
+      // Process each edge in ascending order of cost
+      edges.forEach(edge => {
+        const { u, v, cost } = edge;
+        if (uf.find(u) !== uf.find(v)) {
+          mst.push(edge);
+          uf.union(u, v);
+        }
+      });
+
+      return mst;
+    }
+
+    // Visualize the graph using Vis.js
+    function visualizeGraph(nodes, edges) {
+      const container = document.getElementById("network");
+
+      const data = {
+        nodes: nodes.map((label, index) => ({ id: index, label: `Farm ${label}` })),
+        edges: edges.map(edge => ({
+          from: edge.u,
+          to: edge.v,
+          label: `${edge.cost}`,
+          color: { color: '#ff0000' } // Color the MST edges
+        }))
+      };
+
+      const options = {
+        edges: {
+          smooth: { type: 'continuous' },
+          width: 2
+        },
+        physics: {
+          enabled: true
+        }
+      };
+
+      new vis.Network(container, data, options);
+    }
+
+    // Event handler for form submission
+    document.getElementById("farm-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      // Get the number of farm sections (nodes)
+      const numSections = parseInt(document.getElementById("farm-sections").value);
+      const edgesInput = document.getElementById("edges").value;
+
+      // Parse the edges and run Kruskal's algorithm
+      const edges = parseEdges(edgesInput);
+      const mst = kruskal(numSections, edges);
+
+      // Display MST Results
+      const mstResults = document.getElementById("mst-results");
+      mstResults.innerHTML = "<ul>" + mst.map(edge => `<li>Farm section ${edge.u + 1} - ${edge.v + 1} with cost ${edge.cost}</li>`).join("") + "</ul>";
+
+      // Visualize the MST
+      visualizeGraph(Array.from({ length: numSections }, (_, i) => i + 1), mst);
+    });
+  </script>
+</body>
+</html>
